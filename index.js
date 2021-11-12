@@ -85,14 +85,14 @@ const run = async () => {
 
     // Add a new product
     app.post('/api/products', verifyUser, async (req, res) => {
-      const { name, price, description, imageUrl } = req.body;
-      
+      const { name, price, description, image } = req.body;
+
       try {
         const result = await productCollection.insertOne({
           name,
           price,
           description,
-          imageUrl,
+          image,
         });
         return res.status(201).json(result);
       } catch (error) {
