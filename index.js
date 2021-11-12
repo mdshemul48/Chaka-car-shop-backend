@@ -1,10 +1,17 @@
 const express = require('express');
+const admin = require('firebase-admin');
 const { MongoClient } = require('mongodb');
 const cors = require('cors');
 const ObjectId = require('mongodb').ObjectId;
 require('dotenv').config();
 const app = express();
 const port = process.env.PORT || 5000;
+
+const serviceAccount = JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT);
+
+admin.initializeApp({
+  credential: admin.credential.cert(serviceAccount),
+});
 
 // Middleware
 app.use(cors());
@@ -16,6 +23,27 @@ const client = new MongoClient(uri, {
   useNewUrlParser: true,
   useUnifiedTopology: true,
 });
+
+const verifyUser = async (req, res, next) => {
+  const { authorization } = req.headers;
+  if (!authorization) {
+    return res.status(401).json({
+      status: 'error',
+      message: 'You are not authorized to access this resource',
+    });
+  }
+  const token = authorization.split(' ')[1];
+  const decoded = await admin.auth().verifyIdToken(token);
+  if (decoded) {
+    req.decodedEmail = decoded.email;
+    next();
+  } else {
+    return res.status(401).json({
+      status: 'error',
+      message: 'You are not authorized to access this resource',
+    });
+  }
+};
 
 // Run Function
 const run = async () => {
@@ -56,15 +84,20 @@ const run = async () => {
     });
 
     // Add a new product
-    app.post('/api/products', async (req, res) => {
+    app.post('/api/products', verifyUser, async (req, res) => {
       const { name, price, description, imageUrl } = req.body;
-      const product = await productCollection.insertOne({
-        name,
-        price,
-        description,
-        imageUrl,
-      });
-      res.status(201).send(product.ops[0]);
+      
+      try {
+        const result = await productCollection.insertOne({
+          name,
+          price,
+          description,
+          imageUrl,
+        });
+        return res.status(201).json(result);
+      } catch (error) {
+        return res.status(500).json(error);
+      }
     });
     // ===================== products end =====================
 
