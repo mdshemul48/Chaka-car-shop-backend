@@ -128,18 +128,20 @@ const run = async () => {
 
     // ===================== orders collection =====================
     // Get all the Orders
-    app.get('/api/orders', async (req, res) => {
+    app.get('/api/orders', verifyUser, async (req, res) => {
+      // checking if admin or not
+      const requestedUser = req.decodedEmail;
+      const user = await userCollection.findOne({ email: requestedUser });
+
       try {
-        const { limit } = req.query;
-        if (limit) {
-          const orders = await orderCollection
-            .find()
-            .limit(parseInt(limit))
-            .toArray();
-          res.status(200).send(orders);
+        if (user.role === 'admin') {
+          const orders = await orderCollection.find().toArray();
+          res.status(200).json(orders);
         } else {
-          const orders = await orderCollection.find({}).toArray();
-          res.send(orders);
+          const orders = await orderCollection
+            .find({ email: requestedUser })
+            .toArray();
+          res.status(200).json(orders);
         }
       } catch (error) {
         return res.status(500).send({ message: error.message });
@@ -205,12 +207,16 @@ const run = async () => {
     // ===================== users collection =====================
     //  verify user
     app.post('/api/users/me', verifyUser, async (req, res) => {
-      const userEmail = req.decodedEmail;
-      const userData = await userCollection.findOne({ email: userEmail });
-      if (userData.role === 'admin') {
-        res.status(200).send({ admin: true });
-      } else {
-        res.status(200).send({ admin: false });
+      try {
+        const userEmail = req.decodedEmail;
+        const userData = await userCollection.findOne({ email: userEmail });
+        if (userData.role === 'admin') {
+          res.status(200).send({ admin: true });
+        } else {
+          res.status(200).send({ admin: false });
+        }
+      } catch (error) {
+        return res.status(500).send({ message: error.message });
       }
     });
 
@@ -228,17 +234,28 @@ const run = async () => {
     });
 
     // make an user role admin
-    app.put('/api/users/:id', async (req, res) => {
-      const { id } = req.params;
-      const result = await userCollection.findOneAndUpdate(
-        { _id: ObjectId(id) },
-        { $set: { role: 'admin' } }
-      );
+    app.put('/api/users/make-admin', verifyUser, async (req, res) => {
+      try {
+        //  checking if the user is admin or not
+        const requestedUserId = req.decodedEmail;
+        const user = await userCollection.findOne({ email: requestedUserId });
+        if (user.role !== 'admin') {
+          return res.status(401).send({ message: 'Unauthorized' });
+        }
 
-      if (user) {
-        res.status(200).json(result);
-      } else {
-        res.status(404).send({ message: 'User not found' });
+        const { email } = req.query;
+        const result = await userCollection.findOneAndUpdate(
+          { email },
+          { $set: { role: 'admin' } }
+        );
+
+        if (user) {
+          res.status(200).json(result);
+        } else {
+          res.status(404).send({ message: 'User not found' });
+        }
+      } catch (error) {
+        return res.status(500).send({ message: error.message });
       }
     });
     // ===================== users end =====================
@@ -261,12 +278,12 @@ const run = async () => {
 
     // create an review with rating and comment
     app.post('/api/reviews', async (req, res) => {
-      const { rating, comment } = req.body;
-      const result = await reviewCollection.insertOne({
-        rating,
-        comment,
-      });
-      res.status(201).json(result);
+      try {
+        await reviewCollection.insertOne(req.body);
+        res.status(201).json({ message: 'your review added!' });
+      } catch (err) {
+        return res.status(500).send({ message: err.message });
+      }
     });
 
     // ===================== reviews end =====================
