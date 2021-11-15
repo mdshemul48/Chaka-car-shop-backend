@@ -26,6 +26,7 @@ const client = new MongoClient(uri, {
 
 const verifyUser = async (req, res, next) => {
   const { authorization } = req.headers;
+  console.log(authorization);
   if (!authorization) {
     return res.status(401).json({
       status: 'error',
@@ -58,6 +59,8 @@ const run = async () => {
     // ===================== products collection =====================
     // Get all the Products
     app.get('/api/products', async (req, res) => {
+      console.log('Get all the Products');
+
       const { limit } = req.query;
       if (limit) {
         const products = await productCollection
@@ -83,6 +86,23 @@ const run = async () => {
       }
     });
 
+    // delete an product
+    app.delete('/api/products/:id', verifyUser, async (req, res) => {
+      try {
+        const { id } = req.params;
+        const result = await productCollection.findOneAndDelete({
+          _id: ObjectId(id),
+        });
+        if (result) {
+          res.status(200).send(result);
+        } else {
+          res.status(404).send({ message: 'Product not found' });
+        }
+      } catch (error) {
+        return res.status(500).send({ message: error.message });
+      }
+    });
+
     // Add a new product
     app.post('/api/products', verifyUser, async (req, res) => {
       const { name, price, description, image } = req.body;
@@ -93,6 +113,7 @@ const run = async () => {
           price,
           description,
           image,
+          status: 'pending',
         });
         return res.status(201).json(result);
       } catch (error) {
@@ -104,6 +125,7 @@ const run = async () => {
     // ===================== orders collection =====================
     // Get all the Orders
     app.get('/api/orders', async (req, res) => {
+      console.log('Get all the Orders');
       const { limit } = req.query;
       if (limit) {
         const orders = await orderCollection
@@ -130,15 +152,45 @@ const run = async () => {
 
     // Add a new order
     app.post('/api/orders', async (req, res) => {
-      const { name, price, description, imageUrl } = req.body;
-      const result = await orderCollection.insertOne({
-        name,
-        price,
-        description,
-        imageUrl,
-      });
+      const body = req.body;
+      const result = await orderCollection.insertOne(body);
       res.status(201).json(result);
     });
+
+    // change status of an order
+    app.put('/api/orders/:id', async (req, res) => {
+      console.log('gg bois');
+      const { id } = req.params;
+
+      const result = await orderCollection.findOneAndUpdate(
+        { _id: ObjectId(id) },
+        { $set: { status: 'shipped' } },
+        { returnOriginal: false }
+      );
+      if (result) {
+        res.status(200).send(result);
+      } else {
+        res.status(404).send({ message: 'Order not found' });
+      }
+    });
+
+    // delete order using id
+    app.delete('/api/orders/:id', async (req, res) => {
+      try {
+        const { id } = req.params;
+        const result = await orderCollection.findOneAndDelete({
+          _id: ObjectId(id),
+        });
+        if (result) {
+          res.status(200).send(result);
+        } else {
+          res.status(404).send({ message: 'Order not found' });
+        }
+      } catch (error) {
+        return res.status(500).send({ message: error.message });
+      }
+    });
+
     // ===================== orders end =====================
 
     // ===================== users collection =====================
