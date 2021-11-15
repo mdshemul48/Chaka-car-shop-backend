@@ -26,9 +26,7 @@ const client = new MongoClient(uri, {
 
 const verifyUser = async (req, res, next) => {
   try {
-    console.log(req.headers);
     const { authorization } = req.headers;
-    console.log(authorization);
     if (!authorization) {
       return res.status(401).json({
         status: 'error',
@@ -67,8 +65,6 @@ const run = async () => {
     // ===================== products collection =====================
     // Get all the Products
     app.get('/api/products', async (req, res) => {
-      console.log('Get all the Products');
-
       const { limit } = req.query;
       if (limit) {
         const products = await productCollection
@@ -133,17 +129,20 @@ const run = async () => {
     // ===================== orders collection =====================
     // Get all the Orders
     app.get('/api/orders', async (req, res) => {
-      console.log('Get all the Orders');
-      const { limit } = req.query;
-      if (limit) {
-        const orders = await orderCollection
-          .find()
-          .limit(parseInt(limit))
-          .toArray();
-        res.status(200).send(orders);
-      } else {
-        const orders = await orderCollection.find({}).toArray();
-        res.send(orders);
+      try {
+        const { limit } = req.query;
+        if (limit) {
+          const orders = await orderCollection
+            .find()
+            .limit(parseInt(limit))
+            .toArray();
+          res.status(200).send(orders);
+        } else {
+          const orders = await orderCollection.find({}).toArray();
+          res.send(orders);
+        }
+      } catch (error) {
+        return res.status(500).send({ message: error.message });
       }
     });
 
@@ -167,18 +166,20 @@ const run = async () => {
 
     // change status of an order
     app.put('/api/orders/:id', async (req, res) => {
-      console.log('gg bois');
-      const { id } = req.params;
-
-      const result = await orderCollection.findOneAndUpdate(
-        { _id: ObjectId(id) },
-        { $set: { status: 'shipped' } },
-        { returnOriginal: false }
-      );
-      if (result) {
-        res.status(200).send(result);
-      } else {
-        res.status(404).send({ message: 'Order not found' });
+      try {
+        const { id } = req.params;
+        const result = await orderCollection.findOneAndUpdate(
+          { _id: ObjectId(id) },
+          { $set: { status: 'shipped' } },
+          { returnOriginal: false }
+        );
+        if (result) {
+          res.status(200).send(result);
+        } else {
+          res.status(404).send({ message: 'Order not found' });
+        }
+      } catch (error) {
+        return res.status(500).send({ message: error.message });
       }
     });
 
@@ -204,9 +205,7 @@ const run = async () => {
     // ===================== users collection =====================
     //  verify user
     app.post('/api/users/me', verifyUser, async (req, res) => {
-      console.log(req);
       const userEmail = req.decodedEmail;
-      console.log(userEmail);
       const userData = await userCollection.findOne({ email: userEmail });
       if (userData.role === 'admin') {
         res.status(200).send({ admin: true });
@@ -222,6 +221,7 @@ const run = async () => {
       const result = await userCollection.insertOne({
         name,
         email,
+        role: 'user',
       });
 
       res.status(201).json(result);
