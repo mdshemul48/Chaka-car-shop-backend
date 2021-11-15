@@ -25,20 +25,28 @@ const client = new MongoClient(uri, {
 });
 
 const verifyUser = async (req, res, next) => {
-  const { authorization } = req.headers;
-  console.log(authorization);
-  if (!authorization) {
-    return res.status(401).json({
-      status: 'error',
-      message: 'You are not authorized to access this resource',
-    });
-  }
-  const token = authorization.split(' ')[1];
-  const decoded = await admin.auth().verifyIdToken(token);
-  if (decoded) {
-    req.decodedEmail = decoded.email;
-    next();
-  } else {
+  try {
+    console.log(req.headers);
+    const { authorization } = req.headers;
+    console.log(authorization);
+    if (!authorization) {
+      return res.status(401).json({
+        status: 'error',
+        message: 'You are not authorized to access this resource',
+      });
+    }
+    const token = authorization.split(' ')[1];
+    const decoded = await admin.auth().verifyIdToken(token);
+    if (decoded) {
+      req.decodedEmail = decoded.email;
+      next();
+    } else {
+      return res.status(401).json({
+        status: 'error',
+        message: 'You are not authorized to access this resource',
+      });
+    }
+  } catch (err) {
     return res.status(401).json({
       status: 'error',
       message: 'You are not authorized to access this resource',
@@ -194,6 +202,19 @@ const run = async () => {
     // ===================== orders end =====================
 
     // ===================== users collection =====================
+    //  verify user
+    app.post('/api/users/me', verifyUser, async (req, res) => {
+      console.log(req);
+      const userEmail = req.decodedEmail;
+      console.log(userEmail);
+      const userData = await userCollection.findOne({ email: userEmail });
+      if (userData.role === 'admin') {
+        res.status(200).send({ admin: true });
+      } else {
+        res.status(200).send({ admin: false });
+      }
+    });
+
     // create an user account
     app.post('/api/users', async (req, res) => {
       const { name, email } = req.body;
